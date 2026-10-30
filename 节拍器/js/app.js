@@ -379,8 +379,14 @@
     }
   }
 
+  // 等一帧让界面先刷新。页面在后台时浏览器会暂停 requestAnimationFrame，
+  // 所以最多等 100ms 就继续，免得切走标签页后分析一直卡住。
   function nextFrame() {
-    return new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+    return new Promise((r) => {
+      const done = () => { clearTimeout(timer); setTimeout(r, 0); };
+      const timer = setTimeout(done, 100);
+      requestAnimationFrame(done);
+    });
   }
 
   // ---------- 事件 ----------
