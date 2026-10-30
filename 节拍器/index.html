@@ -111,6 +111,22 @@
         <h2 id="tapTitle">节拍器</h2>
         <span class="tap-hint" id="tapHint">不用放歌，自己设定速度和拍号就能打拍。不知道速度？跟着节奏点「点击测速」</span>
       </div>
+      <div class="metro-display">
+        <button class="md-cell" id="mdBpm" type="button" aria-label="速度，点击修改">
+          <span class="md-label">速度 (BPM)</span>
+          <span class="md-value"><span id="mdBpmVal">120</span><small id="mdTerm">Allegro</small></span>
+        </button>
+        <button class="md-cell" id="mdMeter" type="button" aria-label="拍号，点击修改">
+          <span class="md-label">拍号</span>
+          <span class="md-value" id="mdMeterVal">4/4</span>
+        </button>
+        <button class="md-cell" id="mdSub" type="button" aria-label="切分，点击修改">
+          <span class="md-label">切分</span>
+          <span class="md-value md-glyph" id="mdSubVal">♩</span>
+        </button>
+      </div>
+      <div class="beat-grid" id="beatGrid" role="group" aria-label="每一拍的强弱，点格子调整"></div>
+      <p class="grid-hint">点格子设置每一拍的强弱：三格 = 重音，两格 = 普通，一格 = 轻，空 = 不响</p>
       <div class="tap-body">
         <button id="tap" class="tap-btn" type="button">点击测速<small>或按 T 键</small></button>
         <div class="tap-info">
@@ -123,15 +139,50 @@
           <input id="bpmSlider" class="bpm-slider" type="range" min="30" max="300" step="1" value="120" aria-label="拖动调节速度">
           <div class="tap-bpm">
             <span>拍号</span>
-            <select id="tapMeter" aria-label="拍号">
-              <option value="2">2/4</option>
-              <option value="3">3/4</option>
-              <option value="4" selected>4/4</option>
-              <option value="5">5/4</option>
-              <option value="6">6/8</option>
-              <option value="7">7/8</option>
+            <select id="tapMeter" aria-label="每小节拍数">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4" selected>4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="13">13</option>
+              <option value="14">14</option>
+              <option value="15">15</option>
+              <option value="16">16</option>
             </select>
-            <div class="dots" id="tapDots"></div>
+            <span>/</span>
+            <select id="tapUnit" aria-label="以几分音符为一拍">
+              <option value="4">4</option>
+              <option value="8">8</option>
+            </select>
+          </div>
+          <div class="sub-block">
+            <span class="sub-title">切分</span>
+            <div class="sub-grid" id="subGrid" role="radiogroup" aria-label="切分：每拍怎么打"></div>
+            <!-- 实际保存选中的切分；由上面的图标按钮控制 -->
+            <select id="pattern" hidden aria-hidden="true" tabindex="-1"></select>
+          </div>
+          <div class="tap-bpm">
+            <span>重音</span>
+            <select id="accent" aria-label="重音位置">
+              <option value="first">第一拍</option>
+              <option value="backbeat">2、4 拍</option>
+              <option value="all">全部重音</option>
+              <option value="none">不要重音</option>
+              <option value="custom" hidden>自定义</option>
+            </select>
+          </div>
+          <div class="tap-bpm" id="swingRow" hidden>
+            <span>摇摆程度</span>
+            <input id="swing" class="swing-slider" type="range" min="50" max="75" step="1" value="67" aria-label="摇摆程度">
+            <output id="swingVal">67%</output>
           </div>
           <div class="tap-actions">
             <button class="btn primary" id="metroToggle" type="button">▶ 开始打拍</button>

@@ -17,8 +17,12 @@
     downPrev: $('downPrev'), downNext: $('downNext'),
     offMinus: $('offMinus'), offPlus: $('offPlus'), offVal: $('offVal'),
     tap: $('tap'), tapHint: $('tapHint'), tapBpm: $('tapBpm'), tapMinus: $('tapMinus'), tapPlus: $('tapPlus'),
-    tapMeter: $('tapMeter'), tapDots: $('tapDots'), metroToggle: $('metroToggle'), tapApply: $('tapApply'),
-    bpmSlider: $('bpmSlider'),
+    tapMeter: $('tapMeter'), tapUnit: $('tapUnit'), beatGrid: $('beatGrid'),
+    metroToggle: $('metroToggle'), tapApply: $('tapApply'),
+    bpmSlider: $('bpmSlider'), pattern: $('pattern'), accent: $('accent'),
+    swing: $('swing'), swingVal: $('swingVal'), swingRow: $('swingRow'), subGrid: $('subGrid'),
+    mdBpm: $('mdBpm'), mdBpmVal: $('mdBpmVal'), mdTerm: $('mdTerm'),
+    mdMeter: $('mdMeter'), mdMeterVal: $('mdMeterVal'), mdSub: $('mdSub'), mdSubVal: $('mdSubVal'),
   };
 
   const state = {
@@ -43,6 +47,10 @@
     state.clickGain = ctx.createGain();
     state.musicGain.connect(ctx.destination);
     state.clickGain.connect(ctx.destination);
+    // 细分音 (八分、十六分等) 比拍子轻一些
+    state.subGain = ctx.createGain();
+    state.subGain.gain.value = 0.4;
+    state.subGain.connect(state.clickGain);
     applyVolumes();
     buildClicks();
     return ctx;
@@ -88,10 +96,12 @@
     state.clicks = { normal: make(false), accent: make(true) };
   }
 
-  function playClick(when, accent) {
+  // kind: true / 'accent' 重音，'sub' 轻声的细分音，其他为普通拍
+  function playClick(when, kind) {
     const src = state.ctx.createBufferSource();
+    const accent = kind === true || kind === 'accent';
     src.buffer = accent ? state.clicks.accent : state.clicks.normal;
-    src.connect(state.clickGain);
+    src.connect(kind === 'sub' ? state.subGain : state.clickGain);
     src.start(when);
   }
 
@@ -248,6 +258,9 @@
     const rounded = Math.round(r.bpm);
     el.bpm.textContent = Math.abs(r.bpm - rounded) < 0.05 ? String(rounded) : r.bpm.toFixed(1);
     el.meter.textContent = meterLabel(r.meter);
+    if (!el.meterSel.querySelector(`option[value="${r.meter}"]`)) {
+      el.meterSel.add(new Option(meterLabel(r.meter), String(r.meter)));
+    }
     el.meterSel.value = String(r.meter);
     el.dots.innerHTML = '';
     for (let i = 0; i < r.meter; i++) {
@@ -516,6 +529,7 @@
     el.tapBpm.value = v.toFixed(digits || 0);
     el.bpmSlider.value = Math.round(v);
     save('bpm', el.tapBpm.value);
+    renderDisplay();
   }
 
   function save(key, value) {
@@ -589,30 +603,168 @@
     metro.timer = null;
     metro.queue = [];
     el.metroToggle.textContent = '▶ 开始打拍';
-    Array.from(el.tapDots.children).forEach((d) => d.classList.remove('on'));
+    Array.from(el.beatGrid.children).forEach((c) => c.classList.remove('on'));
+  }
+
+  // 节奏型：每一拍里在哪些位置响 (0 = 拍点, 0.5 = 两拍正中间)，以及响的是"拍"还是轻声的"细分"
+  // 切分 (节奏型)：len 是这个音型占几拍，ev 是在第几拍的什么位置响 (1.5 = 第二拍的后半拍)。
+  // 'beat' 用格子里这一拍的强弱，'sub' 是轻声的细分音。
+  const PATTERNS = [
+    { id: 'quarter', name: '四分', glyph: '♩', len: 1, ev: [[0, 'beat']] },
+    { id: 'eighth', name: '八分', glyph: '♫', len: 1, ev: [[0, 'beat'], [0.5, 'sub']] },
+    { id: 'triplet', name: '三连音', glyph: '³♫', len: 1, ev: [[0, 'beat'], [1 / 3, 'sub'], [2 / 3, 'sub']] },
+    { id: 'sixteenth', name: '十六分', glyph: '♬♬', len: 1, ev: [[0, 'beat'], [0.25, 'sub'], [0.5, 'sub'], [0.75, 'sub']] },
+    { id: 'e16', name: '前八后十六', glyph: '♪♬', len: 1, ev: [[0, 'beat'], [0.5, 'sub'], [0.75, 'sub']] },
+    { id: '16e', name: '前十六后八', glyph: '♬♪', len: 1, ev: [[0, 'beat'], [0.25, 'sub'], [0.5, 'sub']] },
+    { id: 'syncSmall', name: '小切分', glyph: '♪♩♪', len: 1, ev: [[0, 'beat'], [0.25, 'sub'], [0.75, 'sub']] },
+    { id: 'syncBig', name: '大切分·两拍', glyph: '♪♩♪', len: 2, ev: [[0, 'beat'], [0.5, 'sub'], [1.5, 'sub']] },
+    { id: 'dotted', name: '附点八分', glyph: '♪.♬', len: 1, ev: [[0, 'beat'], [0.75, 'sub']] },
+    { id: 'dottedBig', name: '附点四分·两拍', glyph: '♩.♪', len: 2, ev: [[0, 'beat'], [1.5, 'sub']] },
+    { id: 'offbeat', name: '反拍', glyph: '·♪', len: 1, ev: [[0.5, 'beat']] },
+    { id: 'swing', name: '摇摆 / R&B', glyph: '♪♪', len: 1, ev: null }, // 位置由「摇摆程度」决定
+  ];
+  for (const p of PATTERNS) el.pattern.add(new Option(p.name, p.id));
+
+  function currentPattern() {
+    const p = PATTERNS.find((x) => x.id === el.pattern.value) || PATTERNS[0];
+    if (p.id === 'swing') return { ...p, ev: [[0, 'beat'], [+el.swing.value / 100, 'sub']] }; // 前长后短，67% 约等于三连音的摇摆
+    return p;
+  }
+
+  // 切分图标按钮
+  function renderSubGrid() {
+    el.subGrid.innerHTML = '';
+    for (const p of PATTERNS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sub-tile';
+      btn.setAttribute('role', 'radio');
+      btn.setAttribute('aria-checked', String(p.id === el.pattern.value));
+      btn.setAttribute('aria-label', p.name);
+      const ev = p.id === 'swing' ? currentPattern().ev : p.ev;
+      const line = ev.map(([at, level]) =>
+        `<span class="hit${level === 'beat' ? ' main' : ''}" style="left:${(at / p.len) * 100}%"></span>`).join('');
+      const bars = p.len > 1 ? '<span class="bar" style="left:50%"></span>' : '';
+      btn.innerHTML = `<span class="sub-glyph" aria-hidden="true">${p.glyph}</span>` +
+        `<span class="sub-name">${p.name}</span><span class="sub-line" aria-hidden="true">${bars}${line}</span>`;
+      btn.addEventListener('click', () => {
+        el.pattern.value = p.id;
+        el.pattern.dispatchEvent(new Event('change'));
+      });
+      el.subGrid.appendChild(btn);
+    }
+  }
+
+  // ---------- 顶部显示屏 ----------
+  function tempoTerm(bpm) {
+    const terms = [[40, 'Grave'], [60, 'Largo'], [66, 'Larghetto'], [76, 'Adagio'], [108, 'Andante'],
+      [120, 'Moderato'], [168, 'Allegro'], [200, 'Presto'], [Infinity, 'Prestissimo']];
+    return terms.find(([max]) => bpm < max)[1];
+  }
+
+  function renderDisplay() {
+    const bpm = tapBpm();
+    el.mdBpmVal.textContent = el.tapBpm.value || Math.round(bpm);
+    el.mdTerm.textContent = tempoTerm(bpm);
+    el.mdMeterVal.textContent = el.tapMeter.value + '/' + el.tapUnit.value;
+    const p = currentPattern();
+    el.mdSubVal.textContent = p.glyph;
+    el.mdSub.title = p.name;
+  }
+
+  // 每一拍的强弱：3 = 重音，2 = 普通，1 = 轻，0 = 不响。
+  // 「重音」下拉框里的选项是预设，点格子可以随意改成任何组合 (显示为"自定义")。
+  let levels = [];
+  const PRESETS = ['first', 'backbeat', 'all', 'none'];
+
+  function presetLevel(name, i) {
+    switch (name) {
+      case 'backbeat': return i % 2 === 1 ? 3 : 2; // 第 2、4、6… 拍
+      case 'all': return 3;
+      case 'none': return 2;
+      default: return i === 0 ? 3 : 2;            // 第一拍
+    }
+  }
+
+  function applyPreset(name) {
+    levels = Array.from({ length: tapMeter() }, (_, i) => presetLevel(name, i));
+  }
+
+  function matchPreset() {
+    return PRESETS.find((p) => levels.every((lv, i) => lv === presetLevel(p, i))) || 'custom';
+  }
+
+  // 拍数变了：用预设就重新套预设；自定义的保留已有的拍，新加的拍为普通
+  function syncLevels() {
+    const n = tapMeter();
+    if (levels.length === n) return;
+    if (el.accent.value !== 'custom') return applyPreset(el.accent.value);
+    levels = Array.from({ length: n }, (_, i) => (i < levels.length ? levels[i] : 2));
+  }
+
+  function beatLevel(pos) {
+    return levels[pos] === undefined ? 2 : levels[pos];
+  }
+
+  function saveLevels() {
+    save('levels', JSON.stringify(levels));
+    save('accent', el.accent.value);
   }
 
   function metroTick() {
     const ctx = state.ctx;
     const horizon = ctx.currentTime + LOOKAHEAD;
     while (metro.nextTime < horizon) {
+      const period = 60 / tapBpm(); // 每拍都读当前设置，改速度、节奏型立刻生效
       const pos = metro.n % tapMeter();
-      if (metro.nextTime >= ctx.currentTime - 0.005) {
-        playClick(Math.max(metro.nextTime, ctx.currentTime), pos === 0);
-        metro.queue.push({ t: metro.nextTime, pos });
+      const lv = beatLevel(pos);
+      const pat = currentPattern();
+      const k = metro.n % pat.len; // 两拍的音型：这是它的第几拍
+      for (const [at, level] of pat.ev) {
+        if (Math.floor(at + 1e-9) !== k) continue;
+        const t = metro.nextTime + (at - k) * period;
+        if (t < ctx.currentTime - 0.005) continue;
+        let kind = 'sub';
+        if (level === 'beat') {
+          if (lv === 0) continue; // 这一拍设成不响
+          kind = lv === 3 ? 'accent' : lv === 2 ? 'beat' : 'sub';
+        }
+        playClick(Math.max(t, ctx.currentTime), kind);
       }
+      if (metro.nextTime >= ctx.currentTime - 0.005) metro.queue.push({ t: metro.nextTime, pos });
       metro.n++;
-      metro.nextTime += 60 / tapBpm(); // 每次都读当前速度，改 BPM 立刻生效
+      metro.nextTime += period;
     }
   }
 
-  function renderTapDots() {
-    el.tapDots.innerHTML = '';
-    for (let i = 0; i < tapMeter(); i++) {
-      const d = document.createElement('span');
-      d.className = 'dot' + (i === 0 ? ' first' : '');
-      el.tapDots.appendChild(d);
-    }
+  const LEVEL_NAMES = ['不响', '轻', '普通', '重'];
+
+  function renderBeatGrid() {
+    syncLevels();
+    el.beatGrid.innerHTML = '';
+    levels.forEach((lv, i) => {
+      const col = document.createElement('div');
+      col.className = 'beat-col';
+      for (let h = 3; h >= 1; h--) {
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'beat-cell' + (lv >= h ? ' filled' : '');
+        cell.setAttribute('aria-label', `第 ${i + 1} 拍设为${LEVEL_NAMES[h]}（现在：${LEVEL_NAMES[lv]}）`);
+        // 点哪一格就到哪个高度；再点同一格降一级，点最下面一格可以变成不响
+        cell.addEventListener('click', () => {
+          levels[i] = levels[i] === h ? h - 1 : h;
+          el.accent.value = matchPreset();
+          saveLevels();
+          renderBeatGrid();
+        });
+        col.appendChild(cell);
+      }
+      const num = document.createElement('div');
+      num.className = 'beat-num';
+      num.textContent = i + 1;
+      col.appendChild(num);
+      el.beatGrid.appendChild(col);
+    });
   }
 
   function drawMetronome() {
@@ -620,7 +772,7 @@
     const heard = state.ctx.currentTime - latencyOf(state.ctx);
     let cur = null;
     while (metro.queue.length && metro.queue[0].t <= heard) cur = metro.queue.shift();
-    if (cur) Array.from(el.tapDots.children).forEach((d, k) => d.classList.toggle('on', k === cur.pos));
+    if (cur) Array.from(el.beatGrid.children).forEach((c, k) => c.classList.toggle('on', k === cur.pos));
   }
 
   // 用手动速度重新跟踪这首歌的拍子 (仍然会贴合歌里的鼓点，不会越打越偏)，
@@ -653,19 +805,66 @@
   el.metroToggle.addEventListener('click', () => (metro.running ? stopMetronome() : startMetronome()));
   el.tapMinus.addEventListener('click', () => setBpm(Math.round(tapBpm()) - 1));
   el.tapPlus.addEventListener('click', () => setBpm(Math.round(tapBpm()) + 1));
-  el.tapBpm.addEventListener('input', () => { el.bpmSlider.value = Math.round(tapBpm()); });
+  el.tapBpm.addEventListener('input', () => { el.bpmSlider.value = Math.round(tapBpm()); renderDisplay(); });
   el.tapBpm.addEventListener('change', () => setBpm(el.tapBpm.value, el.tapBpm.value.includes('.') ? 1 : 0));
   el.bpmSlider.addEventListener('input', () => setBpm(el.bpmSlider.value));
   el.tapMeter.addEventListener('change', () => {
     save('meter', el.tapMeter.value);
-    renderTapDots();
+    renderDisplay();
+    renderBeatGrid();
+    saveLevels();
   });
+  el.tapUnit.addEventListener('change', () => { save('unit', el.tapUnit.value); renderDisplay(); });
   el.tapApply.addEventListener('click', applyTapsToSong);
+
+  function renderSwing() {
+    el.swingRow.hidden = el.pattern.value !== 'swing';
+    el.swingVal.textContent = el.swing.value + '%';
+  }
+  el.pattern.addEventListener('change', () => {
+    save('pattern', el.pattern.value);
+    renderSwing();
+    renderSubGrid();
+    renderDisplay();
+  });
+  el.accent.addEventListener('change', () => {
+    if (el.accent.value !== 'custom') applyPreset(el.accent.value);
+    saveLevels();
+    renderBeatGrid();
+  });
+  el.swing.addEventListener('input', () => {
+    save('swing', el.swing.value);
+    renderSwing();
+    renderSubGrid();
+  });
+  for (const key of ['pattern', 'accent']) {
+    const v = load(key);
+    if (v && el[key].querySelector(`option[value="${v}"]`)) el[key].value = v;
+  }
+  if (load('swing')) el.swing.value = load('swing');
+  renderSwing();
 
   const savedMeter = load('meter');
   if (savedMeter && el.tapMeter.querySelector(`option[value="${savedMeter}"]`)) el.tapMeter.value = savedMeter;
+  // 以前的版本里 6、7 拍就是 6/8、7/8
+  el.tapUnit.value = load('unit') || (savedMeter === '6' || savedMeter === '7' ? '8' : '4');
   setBpm(load('bpm') || 120, (load('bpm') || '').includes('.') ? 1 : 0);
-  renderTapDots();
+  try {
+    const saved = JSON.parse(load('levels') || 'null');
+    if (Array.isArray(saved) && saved.length === tapMeter() && saved.every((v) => v >= 0 && v <= 3)) levels = saved;
+  } catch (e) { /* 存的数据坏了就用预设 */ }
+  renderBeatGrid();
+  renderSubGrid();
+  renderDisplay();
+
+  // 点显示屏上的哪一项，就跳到对应的设置
+  el.mdBpm.addEventListener('click', () => { el.tapBpm.focus(); el.tapBpm.select(); });
+  el.mdMeter.addEventListener('click', () => el.tapMeter.focus());
+  el.mdSub.addEventListener('click', () => {
+    const cur = el.subGrid.querySelector('[aria-checked="true"]');
+    el.subGrid.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (cur) cur.focus({ preventScroll: true });
+  });
 
   let resizeTimer = null;
   window.addEventListener('resize', () => {
