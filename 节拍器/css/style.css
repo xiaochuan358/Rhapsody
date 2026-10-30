@@ -78,6 +78,25 @@ body {
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
+.section-title { margin: 0 0 4px; font-size: 18px; }
+.wave-wrap { position: relative; }
+.wave-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.player:not(.empty) .wave-empty { display: none; }
+.player.empty .song { color: var(--muted); font-weight: 400; }
+.player.empty .transport,
+.player.empty .mix,
+.player.empty .fix { opacity: 0.45; pointer-events: none; }
+
 .song {
   font-weight: 600;
   white-space: nowrap;

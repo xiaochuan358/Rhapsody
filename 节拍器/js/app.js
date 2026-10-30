@@ -100,7 +100,6 @@
     stop();
     ensureContext();
     setStatus('正在读取 ' + file.name + ' …');
-    el.player.hidden = true;
     try {
       const data = await file.arrayBuffer();
       const buffer = await state.ctx.decodeAudioData(data);
@@ -129,7 +128,7 @@
       el.dur.textContent = fmtTime(buffer.duration);
       el.drop.classList.add('compact');
       el.drop.querySelector('.drop-main').textContent = '换一首歌';
-      el.player.hidden = false;
+      el.player.classList.remove('empty');
       setStatus('');
       renderResult();
     } catch (err) {
@@ -139,6 +138,7 @@
   }
 
   function reanalyze(bpm) {
+    if (!state.result) return;
     const wasPlaying = state.playing;
     if (wasPlaying) pause();
     state.result = BeatDetector.analyze(state.mono, ANALYSIS_RATE, { envelope: state.env, bpm });
@@ -243,6 +243,7 @@
   // ---------- 显示 ----------
   function renderResult() {
     const r = state.result;
+    if (!r) return;
     const rounded = Math.round(r.bpm);
     el.bpm.textContent = Math.abs(r.bpm - rounded) < 0.05 ? String(rounded) : r.bpm.toFixed(1);
     el.meter.textContent = r.meter === 6 ? '6/8' : r.meter + '/4';
@@ -336,7 +337,7 @@
   function frame() {
     requestAnimationFrame(frame);
     drawMetronome();
-    if (!state.result || el.player.hidden) return;
+    if (!state.result) return;
 
     // 扣掉输出延迟，让画面和耳朵听到的对上
     const latency = state.playing ? (state.ctx.outputLatency || state.ctx.baseLatency || 0) : 0;
@@ -422,6 +423,7 @@
   el.half.addEventListener('click', () => reanalyze(state.result.bpm / 2));
   el.double.addEventListener('click', () => reanalyze(state.result.bpm * 2));
   el.meterSel.addEventListener('change', () => {
+    if (!state.result) return;
     state.result.meter = +el.meterSel.value;
     state.result.downbeat %= state.result.meter;
     renderResult();
@@ -429,6 +431,7 @@
   el.downPrev.addEventListener('click', () => shiftDownbeat(-1));
   el.downNext.addEventListener('click', () => shiftDownbeat(1));
   function shiftDownbeat(d) {
+    if (!state.result) return;
     const m = state.result.meter;
     state.result.downbeat = (state.result.downbeat + d + m) % m;
     lastBeatShown = -1;

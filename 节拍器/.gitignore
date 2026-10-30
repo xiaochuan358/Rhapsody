@@ -7,3 +7,5 @@ samples/
 *.mp3
 *.wav
 *.flac
+# 打包输出 (exe 放到 GitHub Releases 发布，不进仓库)
+dist/

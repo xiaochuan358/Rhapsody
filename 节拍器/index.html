@@ -25,8 +25,9 @@
     <p id="status" class="status" role="status" hidden></p>
 
     <!-- 播放器 -->
-    <section id="player" class="player" hidden>
-      <div class="song" id="songName"></div>
+    <section id="player" class="player empty" aria-labelledby="autoTitle">
+      <h2 id="autoTitle" class="section-title">自动识别</h2>
+      <div class="song" id="songName">还没有放入歌曲</div>
 
       <div class="readout">
         <div class="stat">
@@ -43,7 +44,10 @@
         </div>
       </div>
 
-      <canvas id="wave" class="wave" height="120" aria-label="波形与节拍位置，点击跳转"></canvas>
+      <div class="wave-wrap">
+        <canvas id="wave" class="wave" height="120" aria-label="波形与进度条，点击跳转"></canvas>
+        <div class="wave-empty" id="waveEmpty">把音乐拖进上面的框里，这里会显示波形和进度条，并标出每一拍</div>
+      </div>
       <div class="time"><span id="cur">0:00</span><span id="dur">0:00</span></div>
 
       <div class="transport">

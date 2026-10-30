@@ -36,6 +36,13 @@
 
 **在线使用：** 在 GitHub 仓库的 *Settings → Pages* 中，把 Source 设为 `Deploy from a branch`，分支选 `main`、目录选 `/ (root)`，保存后几分钟就能通过 `https://xiaochuan358.github.io/<仓库名>/节拍器/` 访问。
 
+**Windows 程序（exe）：** 运行 `npm run build`，会在 `dist/` 里生成：
+
+- `自动节拍器.exe`：约 60KB 的小启动器，双击后用电脑的默认浏览器打开节拍器，不需要联网和安装。
+- `自动节拍器.html`：合并好的单文件网页，只发这一个文件，对方双击也能用。
+
+打包只需要 Node.js 和 Windows 自带的 .NET Framework 4，不用装其他东西。exe 没有数字签名，第一次打开时 Windows 可能提示「已保护你的电脑」，点「更多信息 → 仍要运行」即可。
+
 ## 工作原理
 
 算法在 [`js/beat-detector.js`](js/beat-detector.js)，大致分 5 步：
@@ -69,6 +76,7 @@ npm test
 ├── css/style.css         样式（自动适配深色模式和手机）
 ├── js/beat-detector.js   节拍检测算法（可在浏览器和 Node 中使用）
 ├── js/app.js             界面、播放和节拍声调度
+├── tools/                打包成单文件网页和 exe 的脚本
 └── tests/                算法测试
 ```
 
