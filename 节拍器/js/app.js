@@ -18,6 +18,7 @@
     offMinus: $('offMinus'), offPlus: $('offPlus'), offVal: $('offVal'),
     tap: $('tap'), tapHint: $('tapHint'), tapBpm: $('tapBpm'), tapMinus: $('tapMinus'), tapPlus: $('tapPlus'),
     tapMeter: $('tapMeter'), tapDots: $('tapDots'), metroToggle: $('metroToggle'), tapApply: $('tapApply'),
+    bpmSlider: $('bpmSlider'),
   };
 
   const state = {
@@ -246,7 +247,7 @@
     if (!r) return;
     const rounded = Math.round(r.bpm);
     el.bpm.textContent = Math.abs(r.bpm - rounded) < 0.05 ? String(rounded) : r.bpm.toFixed(1);
-    el.meter.textContent = r.meter === 6 ? '6/8' : r.meter + '/4';
+    el.meter.textContent = meterLabel(r.meter);
     el.meterSel.value = String(r.meter);
     el.dots.innerHTML = '';
     for (let i = 0; i < r.meter; i++) {
@@ -256,6 +257,11 @@
     }
     if (state.playing) state.nextBeat = firstBeatAfter(songTime() + LOOKAHEAD);
     drawWaveBase();
+  }
+
+  // 6、7 拍按八分音符记 (6/8、7/8)，其余按四分音符
+  function meterLabel(m) {
+    return m === 6 || m === 7 ? m + '/8' : m + '/4';
   }
 
   function updatePlayButton() {
@@ -454,7 +460,14 @@
       if (!e.repeat) tap();
       return;
     }
-    if (!state.buffer) return;
+    if (!state.buffer) {
+      // 没放歌时，空格开关节拍器
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!e.repeat) metro.running ? stopMetronome() : startMetronome();
+      }
+      return;
+    }
     if (e.code === 'Space') {
       e.preventDefault(); // 防止空格同时"按下"当前聚焦的按钮
       if (e.repeat) return;
@@ -491,6 +504,22 @@
     return +el.tapMeter.value;
   }
 
+  // 设定节拍器速度：输入框和滑块保持一致，并记住，下次打开还是这个速度
+  function setBpm(v, digits) {
+    v = Math.max(30, Math.min(300, +v || 120));
+    el.tapBpm.value = v.toFixed(digits || 0);
+    el.bpmSlider.value = Math.round(v);
+    save('bpm', el.tapBpm.value);
+  }
+
+  function save(key, value) {
+    try { localStorage.setItem('metronome.' + key, value); } catch (e) { /* 隐私模式等情况下不可用，忽略 */ }
+  }
+
+  function load(key) {
+    try { return localStorage.getItem('metronome.' + key); } catch (e) { return null; }
+  }
+
   // 对"第几次点击 → 点击时间"做直线拟合：斜率就是每拍时长，截距是第一拍的位置。
   // 比简单平均间隔更抗手抖。
   function fitTaps(key) {
@@ -520,7 +549,7 @@
     }
     const { period, first } = fitTaps('at');
     if (!(period > 0)) return;
-    el.tapBpm.value = (60 / period).toFixed(taps.length >= 6 ? 1 : 0);
+    setBpm(60 / period, taps.length >= 6 ? 1 : 0);
     el.tapHint.textContent = `已点 ${taps.length} 下` + (taps.length < 4 ? '，多点几下会更准' : '');
     el.tapApply.hidden = !state.buffer;
 
@@ -616,11 +645,20 @@
     if (e.code === 'Enter') { e.preventDefault(); tap(); }
   });
   el.metroToggle.addEventListener('click', () => (metro.running ? stopMetronome() : startMetronome()));
-  el.tapMinus.addEventListener('click', () => { el.tapBpm.value = Math.max(30, Math.round(tapBpm()) - 1); });
-  el.tapPlus.addEventListener('click', () => { el.tapBpm.value = Math.min(300, Math.round(tapBpm()) + 1); });
-  el.tapBpm.addEventListener('change', () => { el.tapBpm.value = tapBpm(); });
-  el.tapMeter.addEventListener('change', renderTapDots);
+  el.tapMinus.addEventListener('click', () => setBpm(Math.round(tapBpm()) - 1));
+  el.tapPlus.addEventListener('click', () => setBpm(Math.round(tapBpm()) + 1));
+  el.tapBpm.addEventListener('input', () => { el.bpmSlider.value = Math.round(tapBpm()); });
+  el.tapBpm.addEventListener('change', () => setBpm(el.tapBpm.value, el.tapBpm.value.includes('.') ? 1 : 0));
+  el.bpmSlider.addEventListener('input', () => setBpm(el.bpmSlider.value));
+  el.tapMeter.addEventListener('change', () => {
+    save('meter', el.tapMeter.value);
+    renderTapDots();
+  });
   el.tapApply.addEventListener('click', applyTapsToSong);
+
+  const savedMeter = load('meter');
+  if (savedMeter && el.tapMeter.querySelector(`option[value="${savedMeter}"]`)) el.tapMeter.value = savedMeter;
+  setBpm(load('bpm') || 120, (load('bpm') || '').includes('.') ? 1 : 0);
   renderTapDots();
 
   let resizeTimer = null;

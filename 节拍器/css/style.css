@@ -242,6 +242,9 @@ select {
   padding: 2px 8px;
 }
 .tap-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.tap-bpm .dots { margin-left: 8px; }
+.bpm-slider { width: 100%; accent-color: var(--accent); }
+.tap-btn { font-size: 18px; }
 .foot { margin-top: 32px; text-align: center; font-size: 13px; color: var(--muted); }
 .foot a { color: inherit; }
 
