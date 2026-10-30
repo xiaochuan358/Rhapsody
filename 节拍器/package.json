@@ -1,0 +1,10 @@
+{
+  "name": "auto-metronome",
+  "version": "0.1.0",
+  "description": "放入一首歌，自动识别 BPM 和拍号，并跟着音乐打拍子",
+  "private": true,
+  "scripts": {
+    "test": "node tests/test-detector.js"
+  },
+  "license": "MIT"
+}
